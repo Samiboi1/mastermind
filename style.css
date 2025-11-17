@@ -232,14 +232,6 @@ html, body {
   overflow-x: hidden;   /* viktig för att inget ska sticka ut i sidled */
 }
 
-/* Bilder och videos får aldrig bli bredare än sin container */
-img, video {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-
 .container {
   width: 100%;          
   max-width: 1200px;  
