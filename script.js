@@ -1,137 +1,196 @@
-// script.js
-$(function () {
-  const CODE_LENGTH = 4;
-  const MAX_TURNS = 8;
+/* script.js - Clean Code Mastermind (jQuery) */
+(() => {
+  "use strict";
 
-  const COLORS = ["red", "yellow", "green", "blue", "black"];
-  const rowNames = ["one", "two", "three", "four", "five", "six", "seven", "eight"];
+  const CONFIG = {
+    codeLength: 4,
+    maxTurns: 8,
+    colors: ["red", "yellow", "green", "blue", "black"],
+    rowNames: ["one", "two", "three", "four", "five", "six", "seven", "eight"],
+    selectors: {
+      paletteColors: ".bottom span:not(.delete):not(.submit)",
+      deleteBtn: ".delete",
+      submitBtn: ".submit",
+      topSlots: [".color-one", ".color-two", ".color-three", ".color-four"],
+      dotsBox: (rowIndex) => `.dots${rowIndex + 1}`,
+      slot: (rowName, posIndex) => `.${rowName}-${posIndex + 1}`,
+      rowSlots: (rowName) =>
+        `.${rowName}-1, .${rowName}-2, .${rowName}-3, .${rowName}-4`,
+    },
+  };
 
-  let secret = generateSecret();
-  let currentRow = 0;   // 0..7
-  let currentPos = 0;   // 0..3
-  let currentGuess = [];
-
-  // ----- palette click (red/yellow/green/blue/black) -----
-  $(".bottom span").not(".delete, .submit").on("click", function () {
-    if (currentRow >= MAX_TURNS) return;
-    if (currentPos >= CODE_LENGTH) return;
-
-    const color = getColorFromPalette(this);
-    if (!color) return;
-
-    placeColor(color);
-  });
-
-  // ----- delete click -----
-  $(".delete").on("click", function () {
-    if (currentPos <= 0) return;
-
-    currentPos--;
-    currentGuess.pop();
-
-    const slot = getSlot(currentRow, currentPos);
-    clearSlot(slot);
-  });
-
-  // ----- submit click -----
-  $(".submit").on("click", function () {
-    if (currentGuess.length !== CODE_LENGTH) {
-      // not enough colors in row
-      wiggleRow(currentRow);
-      return;
+  class MastermindGame {
+    constructor(config) {
+      this.config = config;
+      this.secret = createSecret(config);
+      this.currentRowIndex = 0;
+      this.currentPosIndex = 0;
+      this.currentGuess = [];
     }
 
-    const feedback = checkGuess(secret, currentGuess);
-    renderFeedback(currentRow, feedback);
-
-    if (feedback.black === CODE_LENGTH) {
-      endGame(true);
-      return;
+    init() {
+      this.bindEvents();
     }
 
-    currentRow++;
-    currentPos = 0;
-    currentGuess = [];
-
-    if (currentRow >= MAX_TURNS) {
-      endGame(false);
+    bindEvents() {
+      $(this.config.selectors.paletteColors).on(
+        "click",
+        this.handlePaletteClick.bind(this)
+      );
+      $(this.config.selectors.deleteBtn).on(
+        "click",
+        this.handleDeleteClick.bind(this)
+      );
+      $(this.config.selectors.submitBtn).on(
+        "click",
+        this.handleSubmitClick.bind(this)
+      );
     }
-  });
 
-  // ---------------- helpers ----------------
+    handlePaletteClick(event) {
+      if (this.isGameOver() || this.isRowFull()) return;
 
-  function generateSecret() {
-    const s = [];
-    for (let i = 0; i < CODE_LENGTH; i++) {
-      s.push(COLORS[Math.floor(Math.random() * COLORS.length)]);
+      const chosenColor = getPaletteColor(
+        event.currentTarget,
+        this.config.colors
+      );
+      if (!chosenColor) return;
+
+      this.placeColor(chosenColor);
     }
-    return s;
-  }
 
-  function getColorFromPalette(el) {
-    for (const c of COLORS) {
-      if ($(el).hasClass(c)) return c;
+    handleDeleteClick() {
+      if (this.isGameOver() || this.currentPosIndex === 0) return;
+
+      this.currentPosIndex--;
+      this.currentGuess.pop();
+
+      const slot = this.getSlot(this.currentRowIndex, this.currentPosIndex);
+      clearSlot(slot, this.config.colors);
     }
-    return null;
+
+    handleSubmitClick() {
+      if (this.isGameOver()) return;
+
+      if (!this.isRowComplete()) {
+        this.wiggleRow(this.currentRowIndex);
+        return;
+      }
+
+      const feedback = scoreGuess(this.secret, this.currentGuess);
+      this.renderFeedback(this.currentRowIndex, feedback);
+
+      if (feedback.black === this.config.codeLength) {
+        this.finishGame(true);
+        return;
+      }
+
+      this.advanceRowOrLose();
+    }
+
+    placeColor(color) {
+      const slot = this.getSlot(this.currentRowIndex, this.currentPosIndex);
+      fillSlot(slot, color, this.config.colors);
+
+      this.currentGuess.push(color);
+      this.currentPosIndex++;
+    }
+
+    advanceRowOrLose() {
+      this.currentRowIndex++;
+      this.currentPosIndex = 0;
+      this.currentGuess = [];
+
+      if (this.currentRowIndex >= this.config.maxTurns) {
+        this.finishGame(false);
+      }
+    }
+
+    renderFeedback(rowIndex, { black, white }) {
+      const $dots = $(this.config.selectors.dotsBox(rowIndex)).children("div");
+      $dots.css({ backgroundColor: "" });
+
+      const pegs = shuffle([
+        ...Array(black).fill("black"),
+        ...Array(white).fill("white"),
+      ]);
+
+      pegs.forEach((pegColor, i) => {
+        $dots.eq(i).css({
+          backgroundColor: pegColor === "black" ? "#111" : "#eee",
+        });
+      });
+    }
+
+    finishGame(won) {
+      this.revealSecret();
+      alert(
+        won
+          ? "🎉 You cracked the code!"
+          : "💀 Out of turns! The code is revealed."
+      );
+      this.currentRowIndex = this.config.maxTurns; // lock input
+    }
+
+    revealSecret() {
+      this.config.selectors.topSlots.forEach((selector, i) => {
+        const $slot = $(selector);
+        $slot.removeClass(this.config.colors.join(" "));
+        $slot.addClass(this.secret[i]);
+        $slot.css("display", "block"); // CSS hides these by default
+      });
+    }
+
+    wiggleRow(rowIndex) {
+      const rowName = this.config.rowNames[rowIndex];
+      const $rowSlots = $(this.config.selectors.rowSlots(rowName));
+
+      $rowSlots
+        .stop(true)
+        .animate({ left: "-=5px" }, 50)
+        .animate({ left: "+=10px" }, 50)
+        .animate({ left: "-=5px" }, 50);
+    }
+
+    getSlot(rowIndex, posIndex) {
+      const rowName = this.config.rowNames[rowIndex];
+      return $(this.config.selectors.slot(rowName, posIndex));
+    }
+
+    isRowComplete() {
+      return this.currentGuess.length === this.config.codeLength;
+    }
+
+    isRowFull() {
+      return this.currentPosIndex >= this.config.codeLength;
+    }
+
+    isGameOver() {
+      return this.currentRowIndex >= this.config.maxTurns;
+    }
   }
 
-  function placeColor(color) {
-    const slot = getSlot(currentRow, currentPos);
-    fillSlot(slot, color);
-
-    currentGuess.push(color);
-    currentPos++;
+  // ---------- Pure helpers ----------
+  function createSecret({ codeLength, colors }) {
+    return Array.from({ length: codeLength }, () => randomChoice(colors));
   }
 
-  function getSlot(rowIndex, posIndex) {
-    const rowClass = rowNames[rowIndex];
-    return $(`.${rowClass}-${posIndex + 1}`);
-  }
-
-  function fillSlot($slot, color) {
-    $slot.removeClass(COLORS.join(" "));
-    $slot.addClass(color); // CSS already gives background-color for these
-  }
-
-  function clearSlot($slot) {
-    $slot.removeClass(COLORS.join(" "));
-  }
-
-  // little invalid-row animation (no CSS needed)
-  function wiggleRow(rowIndex) {
-    const rowClass = rowNames[rowIndex];
-    const $rowSlots = $(`.${rowClass}-1, .${rowClass}-2, .${rowClass}-3, .${rowClass}-4`);
-
-    $rowSlots.stop(true).animate({ left: "-=5px" }, 50)
-      .animate({ left: "+=10px" }, 50)
-      .animate({ left: "-=5px" }, 50);
-  }
-
-  /**
-   * Mastermind scoring with duplicates handled.
-   * black = correct color+position
-   * white = correct color wrong position
-   */
-  function checkGuess(secretArr, guessArr) {
+  function scoreGuess(secret, guess) {
     let black = 0;
     let white = 0;
 
     const secretLeft = [];
     const guessLeft = [];
 
-    // blacks + leftovers
-    for (let i = 0; i < CODE_LENGTH; i++) {
-      if (guessArr[i] === secretArr[i]) {
-        black++;
-      } else {
-        secretLeft.push(secretArr[i]);
-        guessLeft.push(guessArr[i]);
+    for (let i = 0; i < secret.length; i++) {
+      if (guess[i] === secret[i]) black++;
+      else {
+        secretLeft.push(secret[i]);
+        guessLeft.push(guess[i]);
       }
     }
 
-    // whites via frequency map
-    const freq = {};
-    for (const s of secretLeft) freq[s] = (freq[s] || 0) + 1;
+    const freq = countFrequencies(secretLeft);
 
     for (const g of guessLeft) {
       if (freq[g] > 0) {
@@ -143,52 +202,38 @@ $(function () {
     return { black, white };
   }
 
-  function renderFeedback(rowIndex, { black, white }) {
-    const $dotsBox = $(`.dots${rowIndex + 1}`);
-    const $pegs = $dotsBox.children("div"); // 4 peg divs
-
-    // clear old styling
-    $pegs.css({ backgroundColor: "" });
-
-    const pegColors = [
-      ...Array(black).fill("black"),
-      ...Array(white).fill("white"),
-    ];
-
-    // shuffle so order doesn't leak info
-    pegColors.sort(() => Math.random() - 0.5);
-
-    pegColors.forEach((pc, i) => {
-      const $peg = $pegs.eq(i);
-      if (pc === "black") {
-        $peg.css({ backgroundColor: "#111" });
-      } else {
-        $peg.css({ backgroundColor: "#eee" });
-      }
-    });
+  function countFrequencies(arr) {
+    return arr.reduce((map, item) => {
+      map[item] = (map[item] || 0) + 1;
+      return map;
+    }, {});
   }
 
-  function endGame(won) {
-    revealSecret();
-
-    if (won) {
-      alert("🎉 You cracked the code!");
-    } else {
-      alert("💀 Out of turns! The code is revealed.");
-    }
-
-    currentRow = MAX_TURNS; // lock input
+  function randomChoice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  function revealSecret() {
-    const topSlots = [".color-one", ".color-two", ".color-three", ".color-four"];
-    topSlots.forEach((sel, i) => {
-      const $s = $(sel);
-      $s.removeClass(COLORS.join(" "));
-      $s.addClass(secret[i]);
-
-      // IMPORTANT: your CSS hides spans by default
-      $s.css("display", "block");
-    });
+  function shuffle(arr) {
+    return arr.sort(() => Math.random() - 0.5);
   }
-});
+
+  // ---------- DOM helpers ----------
+  function getPaletteColor(element, colors) {
+    const $el = $(element);
+    return colors.find((c) => $el.hasClass(c)) || null;
+  }
+
+  function fillSlot($slot, color, colors) {
+    $slot.removeClass(colors.join(" "));
+    $slot.addClass(color);
+  }
+
+  function clearSlot($slot, colors) {
+    $slot.removeClass(colors.join(" "));
+  }
+
+  // ---------- Start ----------
+  $(document).ready(() => {
+    new MastermindGame(CONFIG).init();
+  });
+})();
