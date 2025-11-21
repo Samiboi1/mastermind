@@ -11,7 +11,7 @@ $(function () {
   let currentPos = 0;   // 0..3
   let currentGuess = [];
 
-  // ----- palette click -----
+  // ----- palette click (red/yellow/green/blue/black) -----
   $(".bottom span").not(".delete, .submit").on("click", function () {
     if (currentRow >= MAX_TURNS) return;
     if (currentPos >= CODE_LENGTH) return;
@@ -36,7 +36,8 @@ $(function () {
   // ----- submit click -----
   $(".submit").on("click", function () {
     if (currentGuess.length !== CODE_LENGTH) {
-      flashRow(currentRow);
+      // not enough colors in row
+      wiggleRow(currentRow);
       return;
     }
 
@@ -88,21 +89,22 @@ $(function () {
   }
 
   function fillSlot($slot, color) {
-    // remove any prior color classes
     $slot.removeClass(COLORS.join(" "));
-    // add new color class (your CSS likely colors based on these)
-    $slot.addClass(color);
+    $slot.addClass(color); // CSS already gives background-color for these
   }
 
   function clearSlot($slot) {
     $slot.removeClass(COLORS.join(" "));
   }
 
-  function flashRow(rowIndex) {
+  // little invalid-row animation (no CSS needed)
+  function wiggleRow(rowIndex) {
     const rowClass = rowNames[rowIndex];
     const $rowSlots = $(`.${rowClass}-1, .${rowClass}-2, .${rowClass}-3, .${rowClass}-4`);
-    $rowSlots.addClass("flash");
-    setTimeout(() => $rowSlots.removeClass("flash"), 250);
+
+    $rowSlots.stop(true).animate({ left: "-=5px" }, 50)
+      .animate({ left: "+=10px" }, 50)
+      .animate({ left: "-=5px" }, 50);
   }
 
   /**
@@ -143,29 +145,25 @@ $(function () {
 
   function renderFeedback(rowIndex, { black, white }) {
     const $dotsBox = $(`.dots${rowIndex + 1}`);
-    const $pegs = $dotsBox.children("div"); // 4 small peg divs
+    const $pegs = $dotsBox.children("div"); // 4 peg divs
 
     // clear old styling
-    $pegs.removeClass("feedback-black feedback-white");
-    $pegs.css({ backgroundColor: "", border: "" });
+    $pegs.css({ backgroundColor: "" });
 
-    // make an array like ["black","black","white",...]
     const pegColors = [
       ...Array(black).fill("black"),
       ...Array(white).fill("white"),
     ];
 
-    // shuffle so order doesn't reveal positions
+    // shuffle so order doesn't leak info
     pegColors.sort(() => Math.random() - 0.5);
 
     pegColors.forEach((pc, i) => {
       const $peg = $pegs.eq(i);
       if (pc === "black") {
-        $peg.addClass("feedback-black");
-        $peg.css({ backgroundColor: "#111", border: "1px solid #111" });
+        $peg.css({ backgroundColor: "#111" });
       } else {
-        $peg.addClass("feedback-white");
-        $peg.css({ backgroundColor: "#eee", border: "1px solid #999" });
+        $peg.css({ backgroundColor: "#eee" });
       }
     });
   }
@@ -173,7 +171,6 @@ $(function () {
   function endGame(won) {
     revealSecret();
 
-    // simple message
     if (won) {
       alert("🎉 You cracked the code!");
     } else {
@@ -189,8 +186,9 @@ $(function () {
       const $s = $(sel);
       $s.removeClass(COLORS.join(" "));
       $s.addClass(secret[i]);
+
+      // IMPORTANT: your CSS hides spans by default
+      $s.css("display", "block");
     });
   }
 });
-
-
