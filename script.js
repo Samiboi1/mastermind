@@ -1,114 +1,108 @@
-// Source - https://stackoverflow.com/q
-// Posted by user3423682, modified by community. See post 'Timeline' for change history
-// Retrieved 2025-11-21, License - CC BY-SA 3.0
+// mastermind.js
+const readline = require("readline");
 
-package edu.blastermind.model;
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-import java.util.Random;
+// Game settings
+const CODE_LENGTH = 4;
+const COLORS = ["1", "2", "3", "4", "5", "6"]; // 6 possible symbols
+const MAX_TURNS = 10;
+
+// Generate random secret code like ["3","1","6","2"]
+function generateSecret() {
+  const secret = [];
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    const pick = COLORS[Math.floor(Math.random() * COLORS.length)];
+    secret.push(pick);
+  }
+  return secret;
+}
 
 /**
- * Text-based version of the Mastermind game. The hints are simpler in that you
- * know the position of correct pegs (but you know nothing at all about
- * correctly-colored pegs in wrong positions).
- * 
- * @author
- * 
+ * Returns feedback { black, white }
+ * black = correct symbol + position
+ * white = correct symbol wrong position
  */
-public class BlasterMindGame {
+function checkGuess(secret, guess) {
+  let black = 0;
+  let white = 0;
 
-    private static final int NUM_PEGS = 5;
-    private String secret;
+  const secretLeft = [];
+  const guessLeft = [];
 
-    /**
-     * Creates a new game with a randomized secret consisting of some
-     * combination of the letters: A, B, C, D, and/or E
-     */
-    public BlasterMindGame() {
-        Random rng = new Random();
-
-        this.secret = "ABCDE";
-        // TODO 7: for-loop to create the secret string
-        StringBuffer guess = new StringBuffer("");
-        for (int i = 0; i < NUM_PEGS - 1; i++) {
-            char currentChar = guess.charAt(i);
-            String cs = currentChar + "";
-            currentChar = (char) ((char) (currentChar));
-            Character A = guess.charAt(0);
-            Character B = guess.charAt(1);
-            Character C = guess.charAt(2);
-            Character D = guess.charAt(3);
-            Character E = guess.charAt(4);
-            if (cs.matches("0")) {
-                guess.append(secret.charAt(A));
-            }else if (cs.matches("1")) {
-                guess.append(secret.charAt(B));
-            }else if (cs.matches("2")) {
-                guess.append(secret.charAt(C));
-            }else if (cs.matches("3")) {
-                guess.append(secret.charAt(D));
-            }else if (cs.matches("4")) {
-                guess.append(secret.charAt(E));
-            }
-        }
+  // 1) Count blacks and collect leftovers
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    if (guess[i] === secret[i]) {
+      black++;
+    } else {
+      secretLeft.push(secret[i]);
+      guessLeft.push(guess[i]);
     }
+  }
 
-    /**
-     * Tries to guess the secret.
-     * 
-     * @param guess
-     *            a 5-character string made up of only A, B, C, D, or E. Must be
-     *            exactly 5 characters long.
-     * 
-     * @return a 5-character string made up of the characters - and O,
-     *         indicating: '-' for an incorrect match in that position 'O' for a
-     *         correct match in that position
-     */
-    public String getEasyHint(String guess) {
+  // 2) Count whites using frequency map
+  const freq = {};
+  for (const s of secretLeft) {
+    freq[s] = (freq[s] || 0) + 1;
+  }
 
-        String hint = "";
-
-        return hint;
+  for (const g of guessLeft) {
+    if (freq[g] > 0) {
+      white++;
+      freq[g]--;
     }
+  }
 
-    /**
-     * Lets us know if we've guessed the secret or not.
-     * 
-     * @param guess
-     *            our guess (must be exactly 5 characters long)
-     * @return true if correct, false otherwise.
-     */
-    public boolean isGuessCorrect(String guess) {
-
-        return this.secret.equals(guess);
-    }
+  return { black, white };
 }
-package edu.westga.blastermind.controllers;
 
-import java.util.Scanner;
+// Validate input like "1234"
+function parseGuess(input) {
+  const trimmed = input.trim();
+  if (trimmed.length !== CODE_LENGTH) return null;
 
-import edu.westga.blastermind.model.BlasterMindGame;
-
-public class BlasterMind {
-
-    public static void main(String[] args) {
-
-        BlasterMindGame game = new BlasterMindGame();
-        Scanner kb = new Scanner(System.in);
-        int turns = 1;
-
-        while(true){
-        System.out.println("Enter a guess:");
-        String guess = kb.next();
-        if (!game.isGuessCorrect(guess)){
-            System.out.println("You guessed incorrect!");
-            String input = kb.next();
-            turns++;
-        } else if  (game.isGuessCorrect(guess)) break;
-        }
-        // TODO 6: write the game simulation loop
-
-
-        System.out.printf("You won in %d turns\n", turns);
-    }
-
+  const arr = trimmed.split("");
+  for (const ch of arr) {
+    if (!COLORS.includes(ch)) return null;
+  }
+  return arr;
 }
+
+// Ask user for a guess
+function ask(turn, secret) {
+  rl.question(
+    `Turn ${turn}/${MAX_TURNS} - Enter a ${CODE_LENGTH}-digit guess (${COLORS.join(
+      ""
+    )}): `,
+    (answer) => {
+      const guess = parseGuess(answer);
+
+      if (!guess) {
+        console.log(`Invalid guess. Example: 1234 using digits ${COLORS.join(",")}`);
+        return ask(turn, secret);
+      }
+
+      const { black, white } = checkGuess(secret, guess);
+      console.log(`Feedback: black=${black}, white=${white}\n`);
+
+      if (black === CODE_LENGTH) {
+        console.log("🎉 You cracked the code! You win!");
+        console.log(`Secret was: ${secret.join("")}`);
+        return rl.close();
+      }
+
+      if (turn >= MAX_TURNS) {
+        console.log("💀 Out of turns. You lose.");
+        console.log(`Secret was: ${secret.join("")}`);
+        return rl.close();
+      }
+
+      ask(turn + 1, secret);
+    }
+  );
+}
+
+//
