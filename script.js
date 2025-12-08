@@ -16,6 +16,7 @@
       resetBtn: "#resetBtn",
       chooseCodeBtn: "#chooseCodeBtn",
       modeSelect: "#modeSelect",
+      turnsSelect: "#turnsSelect",
 
       topSlots: [".color-one", ".color-two", ".color-three", ".color-four"],
       dotsBox: (rowIndex) => `.dots${rowIndex + 1}`,
@@ -42,6 +43,7 @@
 
     init() {
       this.bindEvents();
+      this.syncTurnsFromUI();
       this.syncModeFromUI();
     }
 
@@ -53,6 +55,7 @@
       $(this.config.selectors.resetBtn).on("click", this.handleResetClick.bind(this));
       $(this.config.selectors.chooseCodeBtn).on("click", this.handleChooseCodeClick.bind(this));
       $(this.config.selectors.modeSelect).on("change", this.handleModeChange.bind(this));
+      $(this.config.selectors.turnsSelect).on("change", this.handleTurnsChange.bind(this));
     }
 
     // ----- Mode -----
@@ -164,6 +167,11 @@
       }
     }
 
+    handleTurnsChange() {
+      this.syncTurnsFromUI();
+      this.handleResetClick();
+    }
+
     handlePaletteClick(event) {
       const chosenColor = getPaletteColor(event.currentTarget, this.config.colors);
       if (!chosenColor) return;
@@ -242,23 +250,22 @@
       this.currentPosIndex = 0;
       this.currentGuess = [];
 
-      this.config.rowNames.forEach((rowName) => {
+      this.config.rowNames.forEach((rowName, rowIndex) => {
         const $rowSlots = $(this.config.selectors.rowSlots(rowName));
         $rowSlots.removeClass(this.config.colors.join(" "));
         $rowSlots.stop(true).css("left", "");
-      });
-
-      for (let i = 0; i < this.config.maxTurns; i++) {
-        $(this.config.selectors.dotsBox(i))
+        $(this.config.selectors.dotsBox(rowIndex))
           .children("div")
           .css({ backgroundColor: "" });
-      }
+      });
 
       this.config.selectors.topSlots.forEach((selector) => {
         const $slot = $(selector);
         $slot.removeClass(this.config.colors.join(" "));
         if (hideTop) $slot.css("display", "");
       });
+
+      this.updateVisibleRows();
     }
 
     placeColor(color) {
@@ -344,6 +351,28 @@
 
     isGameOver() {
       return this.currentRowIndex >= this.config.maxTurns;
+    }
+
+    // ----- Turn limit -----
+    syncTurnsFromUI() {
+      const parsed = parseInt($(this.config.selectors.turnsSelect).val(), 10);
+      this.setMaxTurns(Number.isNaN(parsed) ? this.config.rowNames.length : parsed);
+    }
+
+    setMaxTurns(turnCount) {
+      const clamped = Math.min(Math.max(turnCount, 1), this.config.rowNames.length);
+      this.config.maxTurns = clamped;
+      this.updateVisibleRows();
+    }
+
+    updateVisibleRows() {
+      this.config.rowNames.forEach((rowName, index) => {
+        const visible = index < this.config.maxTurns;
+        $(this.config.selectors.dotsBox(index)).toggle(visible);
+        $(this.config.selectors.rowSlots(rowName)).each((_, el) => {
+          $(el).toggle(visible);
+        });
+      });
     }
   }
 
