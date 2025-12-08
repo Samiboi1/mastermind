@@ -297,7 +297,7 @@
 
       pegs.forEach((pegColor, i) => {
         $dots.eq(i).css({
-          backgroundColor: pegColor === "black" ? "#111" : "#eee",
+          backgroundColor: pegColor === "black" ? "#111" : "#fc3636ef",
         });
       });
     }
@@ -460,3 +460,4 @@ function showNotification(title, message, callback = null) {
         if (callback) callback();
     };
 }
+
