@@ -28,8 +28,8 @@
     constructor(config) {
       this.config = config;
 
-      this.mode = "computer";   // "computer" | "human"
-      this.codeChosen = true;   // human: måste sätta kod först
+      this.mode = "computer";   
+      this.codeChosen = true;  
       this.settingSecret = false;
       this.secretDraft = [];
       this.secretPos = 0;
@@ -75,7 +75,6 @@
         $choose.prop("disabled", true);
         this.reset(true, true);
       } else {
-        // human
         this.codeChosen = false;
         this.settingSecret = false;
         $choose.prop("disabled", false);
@@ -83,7 +82,7 @@
       }
     }
 
-    // ----- Secret setup UI -----
+    // ----- Secret setup -----
     enterSecretSetup() {
       this.settingSecret = true;
       this.codeChosen = false;
@@ -98,14 +97,14 @@
       this.config.selectors.topSlots.forEach((selector) => {
         const $slot = $(selector);
         $slot.removeClass(this.config.colors.join(" "));
-        $slot.css("display", "block"); // visar alla 4 under setup
+        $slot.css("display", "block");
       });
     }
 
     hideTopSlots() {
       this.config.selectors.topSlots.forEach((selector) => {
         const $slot = $(selector);
-        $slot.css("display", ""); // tillbaka till CSS default (hidden)
+        $slot.css("display", "");
       });
     }
 
@@ -135,14 +134,14 @@
 
     confirmSecret() {
       if (this.secretDraft.length !== this.config.codeLength) {
-        alert(`Du måste välja exakt ${this.config.codeLength} färger.`);
+        showNotification("Invalid Code", `You must select exactly ${this.config.codeLength} colors.`);
         return;
       }
+
       this.secret = [...this.secretDraft];
       this.settingSecret = false;
       this.codeChosen = true;
 
-      // göm koden igen och nollställ brädet (utan att skapa ny hemlig kod)
       this.hideTopSlots();
       this.reset(false, true);
     }
@@ -159,7 +158,6 @@
         this.settingSecret = false;
         this.reset(true, true);
       } else {
-        // human: kräver ny kod igen
         this.codeChosen = false;
         this.settingSecret = false;
         this.reset(false, true);
@@ -170,16 +168,16 @@
       const chosenColor = getPaletteColor(event.currentTarget, this.config.colors);
       if (!chosenColor) return;
 
-      // om vi håller på att välja hemlig kod: fyll toppraden
       if (this.settingSecret) {
         this.putSecretColor(chosenColor);
         return;
       }
 
       if (this.mode === "human" && !this.codeChosen) {
-        alert('Human mode: klicka "set code" först.');
+        showNotification("Action Required", "In human mode, click Set Code first.");
         return;
       }
+
       if (this.isGameOver() || this.isRowFull()) return;
 
       this.placeColor(chosenColor);
@@ -192,9 +190,10 @@
       }
 
       if (this.mode === "human" && !this.codeChosen) {
-        alert('Human mode: klicka "set code" först.');
+        showNotification("Action Required", "In human mode, click Set Code first.");
         return;
       }
+
       if (this.isGameOver() || this.currentPosIndex === 0) return;
 
       this.currentPosIndex--;
@@ -211,7 +210,7 @@
       }
 
       if (this.mode === "human" && !this.codeChosen) {
-        alert('Human mode: klicka "set code" först.');
+        showNotification("Action Required", "In human mode, click Set Code first.");
         return;
       }
 
@@ -233,7 +232,7 @@
       this.advanceRowOrLose();
     }
 
-    // ----- Reset / Game ops -----
+    // ----- Reset / Game Ops -----
     reset(makeNewSecret = false, hideTop = true) {
       if (makeNewSecret) {
         this.secret = createSecret(this.config);
@@ -255,7 +254,6 @@
           .css({ backgroundColor: "" });
       }
 
-      // rensa toppens färgklasser, och göm om vi vill
       this.config.selectors.topSlots.forEach((selector) => {
         const $slot = $(selector);
         $slot.removeClass(this.config.colors.join(" "));
@@ -299,8 +297,16 @@
 
     finishGame(won) {
       this.revealSecret();
-      alert(won ? "🎉 You cracked the code!" : "💀 Out of turns! The code is revealed.");
-      this.currentRowIndex = this.config.maxTurns; // lock input
+
+      if (won) {
+        showNotification("You Win", "You cracked the code.", () => {
+          this.currentRowIndex = this.config.maxTurns;
+        });
+      } else {
+        showNotification("No More Turns", "You ran out of attempts. The code is now revealed.", () => {
+          this.currentRowIndex = this.config.maxTurns;
+        });
+      }
     }
 
     revealSecret() {
@@ -408,3 +414,20 @@
     new MastermindGame(CONFIG).init();
   });
 })();
+
+function showNotification(title, message, callback = null) {
+    const box = document.getElementById("game-notification");
+    const notifTitle = document.getElementById("notif-title");
+    const notifMessage = document.getElementById("notif-message");
+    const button = document.getElementById("notif-button");
+
+    notifTitle.textContent = title;
+    notifMessage.textContent = message;
+
+    box.classList.remove("hidden");
+
+    button.onclick = () => {
+        box.classList.add("hidden");
+        if (callback) callback();
+    };
+}
